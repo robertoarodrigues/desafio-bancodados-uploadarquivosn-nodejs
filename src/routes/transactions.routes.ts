@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { getCustomRepository } from 'typeorm';
-import neatCsv from 'neat-csv';
-import fs from 'fs';
+
 import multer from 'multer';
-import path from 'path';
+
 import TransactionsRepository from '../repositories/TransactionsRepository';
 import CreateTransactionService from '../services/CreateTransactionService';
-import Transaction from '../models/Transaction';
+import ImportTransactionsService from '../services/ImportTransactionsService';
+
 import updateConfig from '../config/upload';
 
 const transactionsRouter = Router();
@@ -61,34 +61,11 @@ transactionsRouter.post(
   '/import',
   upload.single('file'),
   async (request, response) => {
-    const transactions: Transaction[] = [];
-    const createTransaction = new CreateTransactionService();
+    const importTransactionsService = new ImportTransactionsService();
 
-    const filePath = path.join(updateConfig.directory, request.file.filename);
-
-    const data = await fs.promises.readFile(filePath);
-    const arrayData = (await neatCsv(data, {
-      headers: ['title', 'type', 'value', 'category'],
-    })) as CsvRequest[];
-
-    arrayData.splice(0, 1);
-
-    arrayData.forEach(async item => {
-      const type = item.type.trim() as 'income' | 'outcome';
-      const value = Number(item.value);
-
-      try {
-        const transaction = await createTransaction.execute({
-          ...item,
-          type,
-          value,
-        });
-
-        transactions.push(transaction);
-      } catch (err) {
-        console.error(err);
-      }
-    });
+    const transactions = await importTransactionsService.execute(
+      request.file.path,
+    );
 
     return response.json(transactions);
   },
